@@ -1,0 +1,908 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2487.7">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="en"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;title&gt;HyperGrowth Sales Dashboard&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- Include React --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"&gt;&lt;/script&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- Include Babel for JSX --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://unpkg.com/@babel/standalone/babel.min.js"&gt;&lt;/script&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- Include Recharts --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://unpkg.com/recharts/umd/Recharts.min.js"&gt;&lt;/script&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- Include Lodash --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"&gt;&lt;/script&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- Include PapaParse for CSV parsing --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"&gt;&lt;/script&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- Include Tailwind CSS --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdn.tailwindcss.com"&gt;&lt;/script&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body class="bg-gray-100"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="root"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script type="text/babel"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Destructure Recharts components for easier use</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,</p>
+<p class="p1"><span class="Apple-converted-space">      </span>XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer</p>
+<p class="p1"><span class="Apple-converted-space">    </span>} = Recharts;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#4CAF50', '#9C27B0', '#3F51B5'];</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const SalesDashboard = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [loading, setLoading] = useState(true);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [error, setError] = useState(null);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [rawData, setRawData] = useState([]);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [currentFileName, setCurrentFileName] = useState('HyperGrowth Sales Dashboard<span class="Apple-converted-space">  </span>Sales Data 1.csv');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [uploadedFile, setUploadedFile] = useState(null);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [uploadStatus, setUploadStatus] = useState('');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const fileInputRef = React.useRef(null);</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Data states</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [kpis, setKpis] = useState({});</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [monthlySales, setMonthlySales] = useState([]);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [weeklySales, setWeeklySales] = useState([]);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [salesByProduct, setSalesByProduct] = useState([]);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [salesByChannel, setSalesByChannel] = useState([]);</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Filter states</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [filterOptions, setFilterOptions] = useState({</p>
+<p class="p1"><span class="Apple-converted-space">        </span>channels: [],</p>
+<p class="p1"><span class="Apple-converted-space">        </span>products: [],</p>
+<p class="p1"><span class="Apple-converted-space">        </span>skus: [],</p>
+<p class="p1"><span class="Apple-converted-space">        </span>dateRange: { start: "", end: "" }</p>
+<p class="p1"><span class="Apple-converted-space">      </span>});</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [activeFilters, setActiveFilters] = useState({</p>
+<p class="p1"><span class="Apple-converted-space">        </span>channels: [],</p>
+<p class="p1"><span class="Apple-converted-space">        </span>products: [],</p>
+<p class="p1"><span class="Apple-converted-space">        </span>skus: [],</p>
+<p class="p1"><span class="Apple-converted-space">        </span>dateRange: { start: "", end: "" }</p>
+<p class="p1"><span class="Apple-converted-space">      </span>});</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Display options</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [revenueTimeframe, setRevenueTimeframe] = useState('monthly');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const [unitsTimeframe, setUnitsTimeframe] = useState('monthly');</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Format currency</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const formatCurrency = (value) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>return new Intl.NumberFormat('en-US', {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>style: 'currency',</p>
+<p class="p1"><span class="Apple-converted-space">          </span>currency: 'USD',</p>
+<p class="p1"><span class="Apple-converted-space">          </span>minimumFractionDigits: 0,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>maximumFractionDigits: 0</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}).format(value);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Format numbers</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const formatNumber = (value) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>return new Intl.NumberFormat('en-US').format(value);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Load data</p>
+<p class="p1"><span class="Apple-converted-space">      </span>React.useEffect(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>loadFile(currentFileName);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}, [currentFileName]);</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>const loadFile = async (fileName) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setLoading(true);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setError(null);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>let fileContent;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>if (uploadedFile &amp;&amp; fileName === 'uploaded-file') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>fileContent = uploadedFile;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>// Try to load the file from the server</p>
+<p class="p1"><span class="Apple-converted-space">              </span>const response = await fetch(fileName);</p>
+<p class="p1"><span class="Apple-converted-space">              </span>if (!response.ok) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);</p>
+<p class="p1"><span class="Apple-converted-space">              </span>}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>fileContent = await response.text();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} catch (error) {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>console.error("Error loading file from server:", error);</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>// If we're trying to load the default file and it fails,</p>
+<p class="p1"><span class="Apple-converted-space">              </span>// show an informative message to use the file upload instead</p>
+<p class="p1"><span class="Apple-converted-space">              </span>if (fileName === 'HyperGrowth Sales Dashboard<span class="Apple-converted-space">  </span>Sales Data 1.csv') {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>setError("Default data file not found. Please upload a CSV file using the 'Upload New CSV' button.");</p>
+<p class="p1"><span class="Apple-converted-space">                </span>setLoading(false);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>throw error;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>const parsedData = Papa.parse(fileContent, {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>header: true,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>dynamicTyping: true,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>skipEmptyLines: true</p>
+<p class="p1"><span class="Apple-converted-space">          </span>});</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>if (parsedData.errors &amp;&amp; parsedData.errors.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>throw new Error(`CSV parsing error: ${parsedData.errors[0].message}`);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>if (!parsedData.data || parsedData.data.length === 0) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>throw new Error('The CSV file is empty or could not be parsed properly');</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Check if required columns exist</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const requiredColumns = [</p>
+<p class="p1"><span class="Apple-converted-space">            </span>'lines.product_code',<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>'lines.product_name',<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>'channel_name',<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>'lines.quantity',<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>'lines.untaxed_amount_cpny_ccy_cache',<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>'order_date',</p>
+<p class="p1"><span class="Apple-converted-space">            </span>'Order Week',</p>
+<p class="p1"><span class="Apple-converted-space">            </span>'Sales Channel Grouped'</p>
+<p class="p1"><span class="Apple-converted-space">          </span>];</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>const missingColumns = requiredColumns.filter(</p>
+<p class="p1"><span class="Apple-converted-space">            </span>col =&gt; !parsedData.meta.fields.includes(col)</p>
+<p class="p1"><span class="Apple-converted-space">          </span>);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>if (missingColumns.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Process data</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const processedData = parsedData.data</p>
+<p class="p1"><span class="Apple-converted-space">            </span>.filter(row =&gt; row.order_date)</p>
+<p class="p1"><span class="Apple-converted-space">            </span>.map(row =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>const dateParts = row.order_date.split('/');</p>
+<p class="p1"><span class="Apple-converted-space">              </span>const date = new Date(dateParts[2], dateParts[0] - 1, dateParts[1]);</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>return {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>...row,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>date,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>year: date.getFullYear(),</p>
+<p class="p1"><span class="Apple-converted-space">                </span>month: date.getMonth() + 1,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>week: row['Order Week'],</p>
+<p class="p1"><span class="Apple-converted-space">                </span>yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>monthName: new Date(date.getFullYear(), date.getMonth(), 1).toLocaleString('default', { month: 'short' }) + ' ' + date.getFullYear()</p>
+<p class="p1"><span class="Apple-converted-space">              </span>};</p>
+<p class="p1"><span class="Apple-converted-space">            </span>})</p>
+<p class="p1"><span class="Apple-converted-space">            </span>.filter(row =&gt; !isNaN(row.date));</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Save raw data</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setRawData(processedData);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Extract filter options</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const channels = [...new Set(processedData.map(row =&gt; row["Sales Channel Grouped"]))].filter(Boolean);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const products = [...new Set(processedData.map(row =&gt; row["lines.product_name"]))].filter(Boolean);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const skus = [...new Set(processedData.map(row =&gt; row["lines.product_code"]))].filter(Boolean);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Get min and max dates</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const minDate = new Date(Math.min(...processedData.map(item =&gt; item.date))).toISOString().split('T')[0];</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const maxDate = new Date(Math.max(...processedData.map(item =&gt; item.date))).toISOString().split('T')[0];</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Update filter options</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setFilterOptions({</p>
+<p class="p1"><span class="Apple-converted-space">            </span>channels,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>products,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>skus,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>dateRange: {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>start: minDate,</p>
+<p class="p1"><span class="Apple-converted-space">              </span>end: maxDate</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>});</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Set initial date range</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setActiveFilters(prev =&gt; ({</p>
+<p class="p1"><span class="Apple-converted-space">            </span>...prev,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>channels: [], // Reset channel filters</p>
+<p class="p1"><span class="Apple-converted-space">            </span>products: [], // Reset product filters</p>
+<p class="p1"><span class="Apple-converted-space">            </span>skus: [], // Reset SKU filters</p>
+<p class="p1"><span class="Apple-converted-space">            </span>dateRange: {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>start: minDate,</p>
+<p class="p1"><span class="Apple-converted-space">              </span>end: maxDate</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}));</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>// Process dashboard data with no filters initially</p>
+<p class="p1"><span class="Apple-converted-space">          </span>processData(processedData);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>setLoading(false);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>if (fileName === 'uploaded-file') {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setUploadStatus('File loaded successfully');</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>} catch (error) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>console.error("Error loading data:", error);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setError(`Failed to load sales data: ${error.message}`);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setLoading(false);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setUploadStatus('Error loading file');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Handle file upload</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const handleFileChange = (event) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const file = event.target.files[0];</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (!file) return;</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>setUploadStatus('Reading file...');</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>const reader = new FileReader();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>reader.onload = (e) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setUploadedFile(e.target.result);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setCurrentFileName('uploaded-file');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setUploadStatus('Processing file...');</p>
+<p class="p1"><span class="Apple-converted-space">          </span>} catch (error) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setError(`Error reading file: ${error.message}`);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setUploadStatus('Error reading file');</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>};</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>reader.onerror = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setError('Error reading file');</p>
+<p class="p1"><span class="Apple-converted-space">          </span>setUploadStatus('Error reading file');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>};</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>reader.readAsText(file);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Reset to default file</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const loadDefaultFile = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setUploadedFile(null);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setCurrentFileName('HyperGrowth Sales Dashboard<span class="Apple-converted-space">  </span>Sales Data 1.csv');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setUploadStatus('');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (fileInputRef.current) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>fileInputRef.current.value = '';</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Apply filters when they change</p>
+<p class="p1"><span class="Apple-converted-space">      </span>React.useEffect(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (rawData.length === 0) return;</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>let filteredData = [...rawData];</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Apply channel filters</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (activeFilters.channels.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>filteredData = filteredData.filter(row =&gt;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>activeFilters.channels.includes(row['Sales Channel Grouped'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Apply product filters</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (activeFilters.products.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>filteredData = filteredData.filter(row =&gt;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>activeFilters.products.includes(row['lines.product_name'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Apply SKU filters</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (activeFilters.skus.length &gt; 0) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>filteredData = filteredData.filter(row =&gt;<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>activeFilters.skus.includes(row['lines.product_code'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Apply date range</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (activeFilters.dateRange.start &amp;&amp; activeFilters.dateRange.end) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const startDate = new Date(activeFilters.dateRange.start);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const endDate = new Date(activeFilters.dateRange.end);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>filteredData = filteredData.filter(row =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const rowDate = new Date(row.date);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>return rowDate &gt;= startDate &amp;&amp; rowDate &lt;= endDate;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Process the filtered data</p>
+<p class="p1"><span class="Apple-converted-space">        </span>processData(filteredData);</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>}, [activeFilters, rawData]);</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>const processData = (data) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Calculate KPIs</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const totalRevenue = _.sumBy(data, 'lines.untaxed_amount_cpny_ccy_cache');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const totalQuantity = _.sumBy(data, 'lines.quantity');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const averageOrderValue = totalRevenue / data.length;</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Count unique weeks and months for average calculations</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const uniqueWeeks = new Set(data.map(row =&gt; row.week)).size;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const uniqueMonths = new Set(data.map(row =&gt; row.yearMonth)).size;</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Calculate average units per week and month</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const avgUnitsPerWeek = uniqueWeeks &gt; 0 ? totalQuantity / uniqueWeeks : 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const avgUnitsPerMonth = uniqueMonths &gt; 0 ? totalQuantity / uniqueMonths : 0;</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>setKpis({</p>
+<p class="p1"><span class="Apple-converted-space">          </span>totalRevenue,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>totalQuantity,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>averageOrderValue,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>orderCount: data.length,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>avgUnitsPerWeek,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>avgUnitsPerMonth,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>uniqueWeeks,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>uniqueMonths</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Monthly sales</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const monthly = _.chain(data)</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.groupBy('yearMonth')</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.map((group, yearMonth) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const dateObj = new Date(group[0].date);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>return {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>month: yearMonth,</p>
+<p class="p1"><span class="Apple-converted-space">              </span>monthName: new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).toLocaleString('default', { month: 'short' }) + ' ' + dateObj.getFullYear(),</p>
+<p class="p1"><span class="Apple-converted-space">              </span>revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),</p>
+<p class="p1"><span class="Apple-converted-space">              </span>quantity: _.sumBy(group, 'lines.quantity')</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">          </span>})</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.orderBy(['month'], ['asc'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.value();</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>setMonthlySales(monthly);</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Weekly sales</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const weekly = _.chain(data)</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.groupBy('week')</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.map((group, week) =&gt; ({</p>
+<p class="p1"><span class="Apple-converted-space">            </span>week,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),</p>
+<p class="p1"><span class="Apple-converted-space">            </span>quantity: _.sumBy(group, 'lines.quantity')</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}))</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.orderBy(['week'], ['asc'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.value();</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>setWeeklySales(weekly);</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Product sales</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const products = _.chain(data)</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.groupBy('lines.product_name')</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.map((group, product) =&gt; ({</p>
+<p class="p1"><span class="Apple-converted-space">            </span>product,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),</p>
+<p class="p1"><span class="Apple-converted-space">            </span>quantity: _.sumBy(group, 'lines.quantity')</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}))</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.orderBy(['revenue'], ['desc'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.value();</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>setSalesByProduct(products);</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Channel sales</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const channels = _.chain(data)</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.groupBy('Sales Channel Grouped')</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.map((group, channel) =&gt; ({</p>
+<p class="p1"><span class="Apple-converted-space">            </span>channel,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),</p>
+<p class="p1"><span class="Apple-converted-space">            </span>quantity: _.sumBy(group, 'lines.quantity'),</p>
+<p class="p1"><span class="Apple-converted-space">            </span>label: formatCurrency(_.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'))</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}))</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.orderBy(['revenue'], ['desc'])</p>
+<p class="p1"><span class="Apple-converted-space">          </span>.value();</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>setSalesByChannel(channels);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>const toggleFilter = (type, value) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setActiveFilters(prev =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const currentValues = prev[type];</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const valueExists = currentValues.includes(value);</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>if (valueExists) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>return {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>...prev,</p>
+<p class="p1"><span class="Apple-converted-space">              </span>[type]: currentValues.filter(v =&gt; v !== value)</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">          </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>return {</p>
+<p class="p1"><span class="Apple-converted-space">              </span>...prev,</p>
+<p class="p1"><span class="Apple-converted-space">              </span>[type]: [...currentValues, value]</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>const handleDateChange = (field, value) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setActiveFilters(prev =&gt; ({</p>
+<p class="p1"><span class="Apple-converted-space">          </span>...prev,</p>
+<p class="p1"><span class="Apple-converted-space">          </span>dateRange: {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>...prev.dateRange,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>[field]: value</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}));</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>const resetFilters = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setActiveFilters({</p>
+<p class="p1"><span class="Apple-converted-space">          </span>channels: [],</p>
+<p class="p1"><span class="Apple-converted-space">          </span>products: [],</p>
+<p class="p1"><span class="Apple-converted-space">          </span>skus: [],</p>
+<p class="p1"><span class="Apple-converted-space">          </span>dateRange: {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>start: filterOptions.dateRange.start,</p>
+<p class="p1"><span class="Apple-converted-space">            </span>end: filterOptions.dateRange.end</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>if (loading) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>return (</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="flex items-center justify-center h-screen"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="text-center"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mb-4"&gt;Loading Dashboard...&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-gray-500"&gt;Please wait while we process your sales data&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>if (error) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>return (</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="flex items-center justify-center h-screen"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="text-center text-red-600 max-w-2xl p-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mb-4"&gt;Error&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="mb-4"&gt;{error}&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="mt-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;label htmlFor="csv-upload-error" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-3"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>Upload CSV File</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;input<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>id="csv-upload-error"</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>type="file"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>accept=".csv"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>className="hidden"</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>onChange={handleFileChange}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>ref={fileInputRef}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="mt-4 text-sm text-gray-600 bg-gray-100 p-4 rounded"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;span className="font-medium"&gt;Note:&lt;/span&gt; The CSV file must include these columns:<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>lines.product_code, lines.product_name, channel_name, lines.quantity,<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>lines.untaxed_amount_cpny_ccy_cache, order_date, Order Week, Sales Channel Grouped</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>// Custom tooltip for charts</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const CustomTooltip = ({ active, payload, label, isCurrency = false }) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (active &amp;&amp; payload &amp;&amp; payload.length) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>return (</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 border border-gray-200 shadow-lg rounded"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;p className="font-semibold"&gt;{label}&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>{payload.map((entry, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;p key={index} style={{ color: entry.color }}&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{entry.name}: {isCurrency || entry.name === "Revenue" ? formatCurrency(entry.value) : formatNumber(entry.value)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>return null;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>};</p>
+<p class="p2"><span class="Apple-converted-space">      </span></p>
+<p class="p1"><span class="Apple-converted-space">      </span>return (</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div className="bg-gray-100 p-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="text-center mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h1 className="text-3xl font-bold text-gray-800"&gt;HyperGrowth Sales Dashboard&lt;/h1&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p className="text-gray-600"&gt;Interactive analytics for sales performance&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>{/* File Upload Section */}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="bg-white p-4 rounded-lg shadow mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h2 className="text-lg font-bold text-gray-800 mb-4"&gt;Data Source&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="flex flex-col md:flex-row items-start md:items-center gap-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="flex-1"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="flex items-center"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;label htmlFor="csv-upload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-3"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>Upload New CSV</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;input<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>id="csv-upload"</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>type="file"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>accept=".csv"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>className="hidden"</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>onChange={handleFileChange}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>ref={fileInputRef}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{currentFileName === 'uploaded-file' &amp;&amp; (</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;button<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>onClick={loadDefaultFile}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>Restore Default Data</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="mt-2 text-sm"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div className="font-medium"&gt;Current Data Source:&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div className="text-gray-600"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>{currentFileName === 'uploaded-file' ? 'Custom uploaded file' : currentFileName}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>{uploadStatus &amp;&amp; (</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className={`px-4 py-2 rounded ${uploadStatus.includes('Error') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{uploadStatus}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>)}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="mt-4 text-sm text-gray-600"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;span className="font-medium"&gt;Note:&lt;/span&gt; The CSV file must include these columns:<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>lines.product_code, lines.product_name, channel_name, lines.quantity,<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>lines.untaxed_amount_cpny_ccy_cache, order_date, Order Week, Sales Channel Grouped</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>{/* Filters */}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="bg-white p-4 rounded-lg shadow mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="flex justify-between items-center mb-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h2 className="text-lg font-bold text-gray-800"&gt;Filters&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;button<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"</p>
+<p class="p1"><span class="Apple-converted-space">                </span>onClick={resetFilters}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>Reset Filters</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>{/* Channel Filter */}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;label className="block text-sm font-medium text-gray-700 mb-2"&gt;Sales Channels&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="h-32 overflow-y-auto border border-gray-300 rounded p-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{filterOptions.channels.map((channel, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div key={index} className="flex items-center mb-1"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;input</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>type="checkbox"</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>id={`channel-${index}`}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>checked={activeFilters.channels.includes(channel)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>onChange={() =&gt; toggleFilter('channels', channel)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>className="mr-2"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;label htmlFor={`channel-${index}`} className="text-sm"&gt;{channel}&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>{/* Product Filter */}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;label className="block text-sm font-medium text-gray-700 mb-2"&gt;Products&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="h-32 overflow-y-auto border border-gray-300 rounded p-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{filterOptions.products.map((product, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div key={index} className="flex items-center mb-1"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;input</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>type="checkbox"</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>id={`product-${index}`}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>checked={activeFilters.products.includes(product)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>onChange={() =&gt; toggleFilter('products', product)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>className="mr-2"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;label htmlFor={`product-${index}`} className="text-sm"&gt;{product}&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>{/* SKU Filter */}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;label className="block text-sm font-medium text-gray-700 mb-2"&gt;SKUs&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="h-32 overflow-y-auto border border-gray-300 rounded p-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{filterOptions.skus.map((sku, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div key={index} className="flex items-center mb-1"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;input</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>type="checkbox"</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>id={`sku-${index}`}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>checked={activeFilters.skus.includes(sku)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>onChange={() =&gt; toggleFilter('skus', sku)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>className="mr-2"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;label htmlFor={`sku-${index}`} className="text-sm"&gt;{sku}&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>{/* Date Range Filter */}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;label className="block text-sm font-medium text-gray-700 mb-2"&gt;Date Range&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="space-y-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;label className="block text-xs text-gray-500 mb-1"&gt;Start Date&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;input</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>type="date"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>className="w-full border border-gray-300 rounded p-2 text-sm"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>value={activeFilters.dateRange.start}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>min={filterOptions.dateRange.start}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>max={filterOptions.dateRange.end}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>onChange={(e) =&gt; handleDateChange("start", e.target.value)}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;label className="block text-xs text-gray-500 mb-1"&gt;End Date&lt;/label&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;input</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>type="date"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>className="w-full border border-gray-300 rounded p-2 text-sm"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>value={activeFilters.dateRange.end}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>min={filterOptions.dateRange.start}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>max={filterOptions.dateRange.end}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>onChange={(e) =&gt; handleDateChange("end", e.target.value)}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>{/* Active Filter Summary */}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="mt-4 text-sm"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="font-medium text-gray-700 mb-1"&gt;Active Filters:&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="flex flex-wrap gap-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>{activeFilters.channels.length &gt; 0 &amp;&amp; (</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div className="bg-blue-100 text-blue-800 px-2 py-1 rounded"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>Channels: {activeFilters.channels.length}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>{activeFilters.products.length &gt; 0 &amp;&amp; (</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div className="bg-green-100 text-green-800 px-2 py-1 rounded"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>Products: {activeFilters.products.length}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>{activeFilters.skus.length &gt; 0 &amp;&amp; (</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;div className="bg-purple-100 text-purple-800 px-2 py-1 rounded"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>SKUs: {activeFilters.skus.length}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="bg-gray-100 text-gray-800 px-2 py-1 rounded"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>Date: {new Date(activeFilters.dateRange.start).toLocaleDateString()} - {new Date(activeFilters.dateRange.end).toLocaleDateString()}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>{/* KPI Cards */}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h3 className="text-gray-500 font-medium"&gt;Total Revenue&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mt-2 text-blue-600"&gt;{formatCurrency(kpis.totalRevenue || 0)}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h3 className="text-gray-500 font-medium"&gt;Total Units Sold&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mt-2 text-green-600"&gt;{formatNumber(kpis.totalQuantity || 0)}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h3 className="text-gray-500 font-medium"&gt;Total Orders&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mt-2 text-purple-600"&gt;{formatNumber(kpis.orderCount || 0)}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h3 className="text-gray-500 font-medium"&gt;Average Order Value&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mt-2 text-orange-600"&gt;{formatCurrency(kpis.averageOrderValue || 0)}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h3 className="text-gray-500 font-medium"&gt;Avg Units/Week&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mt-2 text-teal-600"&gt;{formatNumber(Math.round(kpis.avgUnitsPerWeek || 0))}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h3 className="text-gray-500 font-medium"&gt;Avg Units/Month&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="text-2xl font-bold mt-2 text-indigo-600"&gt;{formatNumber(Math.round(kpis.avgUnitsPerMonth || 0))}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>{/* Revenue Trends */}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="bg-white p-4 rounded-lg shadow mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="flex justify-between items-center mb-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h2 className="text-xl font-bold text-gray-800"&gt;Revenue Trend&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;select<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>className="border border-gray-300 rounded p-2"</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>value={revenueTimeframe}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>onChange={(e) =&gt; setRevenueTimeframe(e.target.value)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;option value="monthly"&gt;Monthly&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;option value="weekly"&gt;Weekly&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/select&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="h-80"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;ResponsiveContainer width="100%" height="100%"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;LineChart</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>data={revenueTimeframe === 'monthly' ? monthlySales : weeklySales}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>margin={{ top: 5, right: 30, left: 20, bottom: 70 }}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;CartesianGrid strokeDasharray="3 3" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;XAxis<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dataKey={revenueTimeframe === 'monthly' ? "monthName" : "week"}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>angle={-45}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>textAnchor="end"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>height={70}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;YAxis<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>tickFormatter={(value) =&gt; `${value/1000}k`}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;Tooltip content={&lt;CustomTooltip isCurrency={true} /&gt;} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;Legend /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;Line<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>type="monotone"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dataKey="revenue"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>name="Revenue"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>stroke="#8884d8"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>strokeWidth={2}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dot={{ r: 4 }}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>activeDot={{ r: 6 }}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/LineChart&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/ResponsiveContainer&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>{/* Units Sold Trends */}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="bg-white p-4 rounded-lg shadow mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="flex justify-between items-center mb-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h2 className="text-xl font-bold text-gray-800"&gt;Units Sold Trend&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;select<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>className="border border-gray-300 rounded p-2"</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>value={unitsTimeframe}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>onChange={(e) =&gt; setUnitsTimeframe(e.target.value)}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;option value="monthly"&gt;Monthly&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;option value="weekly"&gt;Weekly&lt;/option&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/select&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="h-80"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;ResponsiveContainer width="100%" height="100%"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;LineChart</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>data={unitsTimeframe === 'monthly' ? monthlySales : weeklySales}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>margin={{ top: 5, right: 30, left: 20, bottom: 70 }}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;CartesianGrid strokeDasharray="3 3" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;XAxis<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dataKey={unitsTimeframe === 'monthly' ? "monthName" : "week"}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>angle={-45}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>textAnchor="end"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>height={70}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;YAxis /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;Tooltip content={&lt;CustomTooltip /&gt;} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;Legend /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;Line<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>type="monotone"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dataKey="quantity"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>name="Units Sold"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>stroke="#82ca9d"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>strokeWidth={2}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dot={{ r: 4 }}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>activeDot={{ r: 6 }}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/LineChart&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/ResponsiveContainer&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>{/* Products and Channels */}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>{/* Top Products */}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h2 className="text-xl font-bold text-gray-800 mb-4"&gt;Top Products by Revenue&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="h-80"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;ResponsiveContainer width="100%" height="100%"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;BarChart</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>data={salesByProduct.slice(0, 10)}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>margin={{ top: 5, right: 30, left: 20, bottom: 70 }}</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;CartesianGrid strokeDasharray="3 3" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;XAxis<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>dataKey="product"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>angle={-45}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>textAnchor="end"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>height={70}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;YAxis tickFormatter={(value) =&gt; `${value/1000}k`} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;Tooltip content={&lt;CustomTooltip isCurrency={true} /&gt;} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;Legend /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;Bar dataKey="revenue" name="Revenue" fill="#8884d8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>{salesByProduct.slice(0, 10).map((entry, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/Bar&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/BarChart&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/ResponsiveContainer&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>{/* Sales Channels */}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div className="bg-white p-4 rounded-lg shadow"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;h2 className="text-xl font-bold text-gray-800 mb-4"&gt;Sales by Channel&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="h-80"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;ResponsiveContainer width="100%" height="100%"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;PieChart&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;Pie</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>data={salesByChannel}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>dataKey="revenue"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>nameKey="channel"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>cx="50%"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>cy="50%"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>outerRadius={80}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>fill="#8884d8"</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>label={({name, percent}) =&gt; `${name}: ${(percent * 100).toFixed(0)}%`}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>{salesByChannel.map((entry, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/Pie&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;Tooltip formatter={(value) =&gt; formatCurrency(value)} /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;Legend /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>&lt;/PieChart&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/ResponsiveContainer&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">              </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>{/* Channel Breakdown */}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div className="mt-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;h3 className="text-lg font-medium text-gray-800 mb-2"&gt;Channel Revenue Breakdown&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div className="grid grid-cols-1 md:grid-cols-2 gap-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>{salesByChannel.map((channel, index) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div key={index} className="flex items-center"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;div<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>className="w-4 h-4 mr-2 rounded-full"<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>style={{ backgroundColor: COLORS[index % COLORS.length] }}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;div className="flex-1"&gt;{channel.channel}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;div className="font-semibold"&gt;{formatCurrency(channel.revenue)}&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p2"><span class="Apple-converted-space">          </span></p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="text-center text-sm text-gray-500 mt-6"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>Data updated: {new Date().toLocaleDateString()}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>};</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Import React hooks</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const { useState } = React;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// Render the dashboard component to the page</p>
+<p class="p1"><span class="Apple-converted-space">    </span>ReactDOM.render(&lt;SalesDashboard /&gt;, document.getElementById('root'));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
