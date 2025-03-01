@@ -1,0 +1,826 @@
+import React, { useState, useEffect, useRef } from 'react';
+import Papa from 'papaparse';
+import _ from 'lodash';
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#4CAF50', '#9C27B0', '#3F51B5'];
+
+const SalesDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [rawData, setRawData] = useState([]);
+  const [currentFileName, setCurrentFileName] = useState('HyperGrowth Sales Dashboard  Sales Data 1.csv');
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const fileInputRef = useRef(null);
+  
+  // Data states
+  const [kpis, setKpis] = useState({});
+  const [monthlySales, setMonthlySales] = useState([]);
+  const [weeklySales, setWeeklySales] = useState([]);
+  const [salesByProduct, setSalesByProduct] = useState([]);
+  const [salesByChannel, setSalesByChannel] = useState([]);
+  
+  // Filter states
+  const [filterOptions, setFilterOptions] = useState({
+    channels: [],
+    products: [],
+    skus: [],
+    dateRange: { start: "", end: "" }
+  });
+  
+  const [activeFilters, setActiveFilters] = useState({
+    channels: [],
+    products: [],
+    skus: [],
+    dateRange: { start: "", end: "" }
+  });
+  
+  // Display options
+  const [revenueTimeframe, setRevenueTimeframe] = useState('monthly');
+  const [unitsTimeframe, setUnitsTimeframe] = useState('monthly');
+  
+  // Format currency
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+  
+  // Format numbers
+  const formatNumber = (value) => {
+    return new Intl.NumberFormat('en-US').format(value);
+  };
+  
+  // Load data
+  useEffect(() => {
+    loadFile(currentFileName);
+  }, [currentFileName]);
+  
+  const loadFile = async (fileName) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      let fileContent;
+      
+      if (uploadedFile && fileName === 'uploaded-file') {
+        fileContent = uploadedFile;
+      } else {
+        const response = await window.fs.readFile(fileName, { encoding: 'utf8' });
+        fileContent = response;
+      }
+      
+      const parsedData = Papa.parse(fileContent, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true
+      });
+      
+      if (parsedData.errors && parsedData.errors.length > 0) {
+        throw new Error(`CSV parsing error: ${parsedData.errors[0].message}`);
+      }
+      
+      if (!parsedData.data || parsedData.data.length === 0) {
+        throw new Error('The CSV file is empty or could not be parsed properly');
+      }
+      
+      // Check if required columns exist
+      const requiredColumns = [
+        'lines.product_code', 
+        'lines.product_name', 
+        'channel_name', 
+        'lines.quantity', 
+        'lines.untaxed_amount_cpny_ccy_cache', 
+        'order_date',
+        'Order Week',
+        'Sales Channel Grouped'
+      ];
+      
+      const missingColumns = requiredColumns.filter(
+        col => !parsedData.meta.fields.includes(col)
+      );
+      
+      if (missingColumns.length > 0) {
+        throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
+      }
+      
+      // Process data
+      const processedData = parsedData.data
+        .filter(row => row.order_date)
+        .map(row => {
+          const dateParts = row.order_date.split('/');
+          const date = new Date(dateParts[2], dateParts[0] - 1, dateParts[1]);
+          
+          return {
+            ...row,
+            date,
+            year: date.getFullYear(),
+            month: date.getMonth() + 1,
+            week: row['Order Week'],
+            yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+            monthName: new Date(date.getFullYear(), date.getMonth(), 1).toLocaleString('default', { month: 'short' }) + ' ' + date.getFullYear()
+          };
+        })
+        .filter(row => !isNaN(row.date));
+      
+      // Save raw data
+      setRawData(processedData);
+      
+      // Extract filter options
+      const channels = [...new Set(processedData.map(row => row["Sales Channel Grouped"]))].filter(Boolean);
+      const products = [...new Set(processedData.map(row => row["lines.product_name"]))].filter(Boolean);
+      const skus = [...new Set(processedData.map(row => row["lines.product_code"]))].filter(Boolean);
+      
+      // Get min and max dates
+      const minDate = new Date(Math.min(...processedData.map(item => item.date))).toISOString().split('T')[0];
+      const maxDate = new Date(Math.max(...processedData.map(item => item.date))).toISOString().split('T')[0];
+      
+      // Update filter options
+      setFilterOptions({
+        channels,
+        products,
+        skus,
+        dateRange: {
+          start: minDate,
+          end: maxDate
+        }
+      });
+      
+      // Set initial date range
+      setActiveFilters(prev => ({
+        ...prev,
+        channels: [], // Reset channel filters
+        products: [], // Reset product filters
+        skus: [], // Reset SKU filters
+        dateRange: {
+          start: minDate,
+          end: maxDate
+        }
+      }));
+      
+      // Process dashboard data with no filters initially
+      processData(processedData);
+      
+      setLoading(false);
+      
+      if (fileName === 'uploaded-file') {
+        setUploadStatus('File loaded successfully');
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+      setError(`Failed to load sales data: ${error.message}`);
+      setLoading(false);
+      setUploadStatus('Error loading file');
+    }
+  };
+  
+  // Handle file upload
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    setUploadStatus('Reading file...');
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        setUploadedFile(e.target.result);
+        setCurrentFileName('uploaded-file');
+        setUploadStatus('Processing file...');
+      } catch (error) {
+        setError(`Error reading file: ${error.message}`);
+        setUploadStatus('Error reading file');
+      }
+    };
+    
+    reader.onerror = () => {
+      setError('Error reading file');
+      setUploadStatus('Error reading file');
+    };
+    
+    reader.readAsText(file);
+  };
+  
+  // Reset to default file
+  const loadDefaultFile = () => {
+    setUploadedFile(null);
+    setCurrentFileName('HyperGrowth Sales Dashboard  Sales Data 1.csv');
+    setUploadStatus('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+  
+  // Apply filters when they change
+  useEffect(() => {
+    if (rawData.length === 0) return;
+    
+    let filteredData = [...rawData];
+    
+    // Apply channel filters
+    if (activeFilters.channels.length > 0) {
+      filteredData = filteredData.filter(row => 
+        activeFilters.channels.includes(row['Sales Channel Grouped'])
+      );
+    }
+    
+    // Apply product filters
+    if (activeFilters.products.length > 0) {
+      filteredData = filteredData.filter(row => 
+        activeFilters.products.includes(row['lines.product_name'])
+      );
+    }
+    
+    // Apply SKU filters
+    if (activeFilters.skus.length > 0) {
+      filteredData = filteredData.filter(row => 
+        activeFilters.skus.includes(row['lines.product_code'])
+      );
+    }
+    
+    // Apply date range
+    if (activeFilters.dateRange.start && activeFilters.dateRange.end) {
+      const startDate = new Date(activeFilters.dateRange.start);
+      const endDate = new Date(activeFilters.dateRange.end);
+      
+      filteredData = filteredData.filter(row => {
+        const rowDate = new Date(row.date);
+        return rowDate >= startDate && rowDate <= endDate;
+      });
+    }
+    
+    // Process the filtered data
+    processData(filteredData);
+    
+  }, [activeFilters, rawData]);
+  
+  const processData = (data) => {
+    // Calculate KPIs
+    const totalRevenue = _.sumBy(data, 'lines.untaxed_amount_cpny_ccy_cache');
+    const totalQuantity = _.sumBy(data, 'lines.quantity');
+    const averageOrderValue = totalRevenue / data.length;
+    
+    // Count unique weeks and months for average calculations
+    const uniqueWeeks = new Set(data.map(row => row.week)).size;
+    const uniqueMonths = new Set(data.map(row => row.yearMonth)).size;
+    
+    // Calculate average units per week and month
+    const avgUnitsPerWeek = uniqueWeeks > 0 ? totalQuantity / uniqueWeeks : 0;
+    const avgUnitsPerMonth = uniqueMonths > 0 ? totalQuantity / uniqueMonths : 0;
+    
+    setKpis({
+      totalRevenue,
+      totalQuantity,
+      averageOrderValue,
+      orderCount: data.length,
+      avgUnitsPerWeek,
+      avgUnitsPerMonth,
+      uniqueWeeks,
+      uniqueMonths
+    });
+    
+    // Monthly sales
+    const monthly = _.chain(data)
+      .groupBy('yearMonth')
+      .map((group, yearMonth) => {
+        const dateObj = new Date(group[0].date);
+        return {
+          month: yearMonth,
+          monthName: new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).toLocaleString('default', { month: 'short' }) + ' ' + dateObj.getFullYear(),
+          revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),
+          quantity: _.sumBy(group, 'lines.quantity')
+        };
+      })
+      .orderBy(['month'], ['asc'])
+      .value();
+    
+    setMonthlySales(monthly);
+    
+    // Weekly sales
+    const weekly = _.chain(data)
+      .groupBy('week')
+      .map((group, week) => ({
+        week,
+        revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),
+        quantity: _.sumBy(group, 'lines.quantity')
+      }))
+      .orderBy(['week'], ['asc'])
+      .value();
+    
+    setWeeklySales(weekly);
+    
+    // Product sales
+    const products = _.chain(data)
+      .groupBy('lines.product_name')
+      .map((group, product) => ({
+        product,
+        revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),
+        quantity: _.sumBy(group, 'lines.quantity')
+      }))
+      .orderBy(['revenue'], ['desc'])
+      .value();
+    
+    setSalesByProduct(products);
+    
+    // Channel sales
+    const channels = _.chain(data)
+      .groupBy('Sales Channel Grouped')
+      .map((group, channel) => ({
+        channel,
+        revenue: _.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'),
+        quantity: _.sumBy(group, 'lines.quantity'),
+        label: formatCurrency(_.sumBy(group, 'lines.untaxed_amount_cpny_ccy_cache'))
+      }))
+      .orderBy(['revenue'], ['desc'])
+      .value();
+    
+    setSalesByChannel(channels);
+  };
+  
+  const toggleFilter = (type, value) => {
+    setActiveFilters(prev => {
+      const currentValues = prev[type];
+      const valueExists = currentValues.includes(value);
+      
+      if (valueExists) {
+        return {
+          ...prev,
+          [type]: currentValues.filter(v => v !== value)
+        };
+      } else {
+        return {
+          ...prev,
+          [type]: [...currentValues, value]
+        };
+      }
+    });
+  };
+  
+  const handleDateChange = (field, value) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      dateRange: {
+        ...prev.dateRange,
+        [field]: value
+      }
+    }));
+  };
+  
+  const resetFilters = () => {
+    setActiveFilters({
+      channels: [],
+      products: [],
+      skus: [],
+      dateRange: {
+        start: filterOptions.dateRange.start,
+        end: filterOptions.dateRange.end
+      }
+    });
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="text-2xl font-bold mb-4">Loading Dashboard...</div>
+          <div className="text-gray-500">Please wait while we process your sales data</div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center text-red-600">
+          <div className="text-2xl font-bold mb-4">Error</div>
+          <div className="mb-4">{error}</div>
+          {currentFileName === 'uploaded-file' && (
+            <button 
+              onClick={loadDefaultFile}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Load Default Data
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Custom tooltip for charts
+  const CustomTooltip = ({ active, payload, label, isCurrency = false }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 border border-gray-200 shadow-lg rounded">
+          <p className="font-semibold">{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} style={{ color: entry.color }}>
+              {entry.name}: {isCurrency || entry.name === "Revenue" ? formatCurrency(entry.value) : formatNumber(entry.value)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+  
+  return (
+    <div className="bg-gray-100 p-6">
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">HyperGrowth Sales Dashboard</h1>
+        <p className="text-gray-600">Interactive analytics for sales performance</p>
+      </div>
+      
+      {/* File Upload Section */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <h2 className="text-lg font-bold text-gray-800 mb-4">Data Source</h2>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex-1">
+            <div className="flex items-center">
+              <label htmlFor="csv-upload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-3">
+                Upload New CSV
+              </label>
+              <input 
+                id="csv-upload"
+                type="file" 
+                accept=".csv" 
+                className="hidden"
+                onChange={handleFileChange}
+                ref={fileInputRef}
+              />
+              {currentFileName === 'uploaded-file' && (
+                <button 
+                  onClick={loadDefaultFile}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                >
+                  Restore Default Data
+                </button>
+              )}
+            </div>
+            <div className="mt-2 text-sm">
+              <div className="font-medium">Current Data Source:</div>
+              <div className="text-gray-600">
+                {currentFileName === 'uploaded-file' ? 'Custom uploaded file' : currentFileName}
+              </div>
+            </div>
+          </div>
+          {uploadStatus && (
+            <div className={`px-4 py-2 rounded ${uploadStatus.includes('Error') ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+              {uploadStatus}
+            </div>
+          )}
+        </div>
+        <div className="mt-4 text-sm text-gray-600">
+          <p>
+            <span className="font-medium">Note:</span> The CSV file must include these columns: 
+            lines.product_code, lines.product_name, channel_name, lines.quantity, 
+            lines.untaxed_amount_cpny_ccy_cache, order_date, Order Week, Sales Channel Grouped
+          </p>
+        </div>
+      </div>
+      
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-gray-800">Filters</h2>
+          <button 
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            onClick={resetFilters}
+          >
+            Reset Filters
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Channel Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sales Channels</label>
+            <div className="h-32 overflow-y-auto border border-gray-300 rounded p-2">
+              {filterOptions.channels.map((channel, index) => (
+                <div key={index} className="flex items-center mb-1">
+                  <input
+                    type="checkbox"
+                    id={`channel-${index}`}
+                    checked={activeFilters.channels.includes(channel)}
+                    onChange={() => toggleFilter('channels', channel)}
+                    className="mr-2"
+                  />
+                  <label htmlFor={`channel-${index}`} className="text-sm">{channel}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Product Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Products</label>
+            <div className="h-32 overflow-y-auto border border-gray-300 rounded p-2">
+              {filterOptions.products.map((product, index) => (
+                <div key={index} className="flex items-center mb-1">
+                  <input
+                    type="checkbox"
+                    id={`product-${index}`}
+                    checked={activeFilters.products.includes(product)}
+                    onChange={() => toggleFilter('products', product)}
+                    className="mr-2"
+                  />
+                  <label htmlFor={`product-${index}`} className="text-sm">{product}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* SKU Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">SKUs</label>
+            <div className="h-32 overflow-y-auto border border-gray-300 rounded p-2">
+              {filterOptions.skus.map((sku, index) => (
+                <div key={index} className="flex items-center mb-1">
+                  <input
+                    type="checkbox"
+                    id={`sku-${index}`}
+                    checked={activeFilters.skus.includes(sku)}
+                    onChange={() => toggleFilter('skus', sku)}
+                    className="mr-2"
+                  />
+                  <label htmlFor={`sku-${index}`} className="text-sm">{sku}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Date Range Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  className="w-full border border-gray-300 rounded p-2 text-sm"
+                  value={activeFilters.dateRange.start}
+                  min={filterOptions.dateRange.start}
+                  max={filterOptions.dateRange.end}
+                  onChange={(e) => handleDateChange("start", e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">End Date</label>
+                <input
+                  type="date"
+                  className="w-full border border-gray-300 rounded p-2 text-sm"
+                  value={activeFilters.dateRange.end}
+                  min={filterOptions.dateRange.start}
+                  max={filterOptions.dateRange.end}
+                  onChange={(e) => handleDateChange("end", e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Active Filter Summary */}
+        <div className="mt-4 text-sm">
+          <div className="font-medium text-gray-700 mb-1">Active Filters:</div>
+          <div className="flex flex-wrap gap-2">
+            {activeFilters.channels.length > 0 && (
+              <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                Channels: {activeFilters.channels.length}
+              </div>
+            )}
+            {activeFilters.products.length > 0 && (
+              <div className="bg-green-100 text-green-800 px-2 py-1 rounded">
+                Products: {activeFilters.products.length}
+              </div>
+            )}
+            {activeFilters.skus.length > 0 && (
+              <div className="bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                SKUs: {activeFilters.skus.length}
+              </div>
+            )}
+            <div className="bg-gray-100 text-gray-800 px-2 py-1 rounded">
+              Date: {new Date(activeFilters.dateRange.start).toLocaleDateString()} - {new Date(activeFilters.dateRange.end).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-gray-500 font-medium">Total Revenue</h3>
+          <div className="text-2xl font-bold mt-2 text-blue-600">{formatCurrency(kpis.totalRevenue || 0)}</div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-gray-500 font-medium">Total Units Sold</h3>
+          <div className="text-2xl font-bold mt-2 text-green-600">{formatNumber(kpis.totalQuantity || 0)}</div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-gray-500 font-medium">Total Orders</h3>
+          <div className="text-2xl font-bold mt-2 text-purple-600">{formatNumber(kpis.orderCount || 0)}</div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-gray-500 font-medium">Average Order Value</h3>
+          <div className="text-2xl font-bold mt-2 text-orange-600">{formatCurrency(kpis.averageOrderValue || 0)}</div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-gray-500 font-medium">Avg Units/Week</h3>
+          <div className="text-2xl font-bold mt-2 text-teal-600">{formatNumber(Math.round(kpis.avgUnitsPerWeek || 0))}</div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-gray-500 font-medium">Avg Units/Month</h3>
+          <div className="text-2xl font-bold mt-2 text-indigo-600">{formatNumber(Math.round(kpis.avgUnitsPerMonth || 0))}</div>
+        </div>
+      </div>
+      
+      {/* Revenue Trends */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Revenue Trend</h2>
+          <div>
+            <select 
+              className="border border-gray-300 rounded p-2"
+              value={revenueTimeframe}
+              onChange={(e) => setRevenueTimeframe(e.target.value)}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={revenueTimeframe === 'monthly' ? monthlySales : weeklySales}
+              margin={{ top: 5, right: 30, left: 20, bottom: 70 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey={revenueTimeframe === 'monthly' ? "monthName" : "week"} 
+                angle={-45} 
+                textAnchor="end" 
+                height={70} 
+              />
+              <YAxis 
+                tickFormatter={(value) => `$${value/1000}k`} 
+              />
+              <Tooltip content={<CustomTooltip isCurrency={true} />} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="revenue" 
+                name="Revenue" 
+                stroke="#8884d8" 
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      
+      {/* Units Sold Trends */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Units Sold Trend</h2>
+          <div>
+            <select 
+              className="border border-gray-300 rounded p-2"
+              value={unitsTimeframe}
+              onChange={(e) => setUnitsTimeframe(e.target.value)}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={unitsTimeframe === 'monthly' ? monthlySales : weeklySales}
+              margin={{ top: 5, right: 30, left: 20, bottom: 70 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey={unitsTimeframe === 'monthly' ? "monthName" : "week"} 
+                angle={-45} 
+                textAnchor="end" 
+                height={70} 
+              />
+              <YAxis />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="quantity" 
+                name="Units Sold" 
+                stroke="#82ca9d" 
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      
+      {/* Products and Channels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Top Products */}
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Top Products by Revenue</h2>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={salesByProduct.slice(0, 10)}
+                margin={{ top: 5, right: 30, left: 20, bottom: 70 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="product" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={70} 
+                />
+                <YAxis tickFormatter={(value) => `${value/1000}k`} />
+                <Tooltip content={<CustomTooltip isCurrency={true} />} />
+                <Legend />
+                <Bar dataKey="revenue" name="Revenue" fill="#8884d8">
+                  {salesByProduct.slice(0, 10).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        
+        {/* Sales Channels */}
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Sales by Channel</h2>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={salesByChannel}
+                  dataKey="revenue"
+                  nameKey="channel"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                >
+                  {salesByChannel.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          
+          {/* Channel Breakdown */}
+          <div className="mt-4">
+            <h3 className="text-lg font-medium text-gray-800 mb-2">Channel Revenue Breakdown</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {salesByChannel.map((channel, index) => (
+                <div key={index} className="flex items-center">
+                  <div 
+                    className="w-4 h-4 mr-2 rounded-full" 
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  ></div>
+                  <div className="flex-1">{channel.channel}</div>
+                  <div className="font-semibold">{formatCurrency(channel.revenue)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="text-center text-sm text-gray-500 mt-6">
+        Data updated: {new Date().toLocaleDateString()}
+      </div>
+    </div>
+  );
+};
+
+export default SalesDashboard;
